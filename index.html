@@ -1,0 +1,460 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Stand-up Simulator 3000</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Courier+Prime:ital,wght@0,400;0,700;1,400&family=Bebas+Neue&display=swap');
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg: #0d0f0e;
+    --surface: #141716;
+    --border: #2a2e2b;
+    --green: #4ade80;
+    --green-dim: #1a3d28;
+    --amber: #fbbf24;
+    --red: #f87171;
+    --text: #d1d5cf;
+    --muted: #5a6358;
+  }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Courier Prime', monospace;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+    overflow-x: hidden;
+  }
+
+  /* scanline effect */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background: repeating-linear-gradient(
+      0deg,
+      transparent,
+      transparent 2px,
+      rgba(0,0,0,0.07) 2px,
+      rgba(0,0,0,0.07) 4px
+    );
+    pointer-events: none;
+    z-index: 999;
+  }
+
+  h1 {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: clamp(2.5rem, 6vw, 4.5rem);
+    letter-spacing: 0.08em;
+    color: var(--green);
+    text-shadow: 0 0 30px rgba(74,222,128,0.4);
+    margin-bottom: 4px;
+  }
+
+  .subtitle {
+    color: var(--muted);
+    font-size: 0.78rem;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    margin-bottom: 36px;
+  }
+
+  .game-area {
+    width: 100%;
+    max-width: 680px;
+    border: 1px solid var(--border);
+    background: var(--surface);
+    padding: 32px;
+    position: relative;
+  }
+
+  .game-area::before {
+    content: attr(data-label);
+    position: absolute;
+    top: -10px;
+    left: 20px;
+    background: var(--surface);
+    color: var(--muted);
+    font-size: 0.7rem;
+    letter-spacing: 0.15em;
+    padding: 0 8px;
+  }
+
+  /* Standup cards */
+  #screen {
+    min-height: 220px;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    margin-bottom: 28px;
+  }
+
+  .question-block {
+    animation: fadeIn 0.3s ease;
+  }
+
+  @keyframes fadeIn {
+    from { opacity: 0; transform: translateY(6px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+
+  .q-label {
+    color: var(--muted);
+    font-size: 0.7rem;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    margin-bottom: 6px;
+  }
+
+  .q-text {
+    color: var(--amber);
+    font-size: 1rem;
+    line-height: 1.5;
+  }
+
+  .answer-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+    margin-top: 20px;
+    animation: fadeIn 0.4s ease;
+  }
+
+  .answer-btn {
+    background: transparent;
+    border: 1px solid var(--border);
+    color: var(--text);
+    font-family: 'Courier Prime', monospace;
+    font-size: 0.82rem;
+    padding: 12px 14px;
+    cursor: pointer;
+    text-align: left;
+    line-height: 1.4;
+    transition: border-color 0.15s, background 0.15s, color 0.15s;
+  }
+
+  .answer-btn:hover {
+    border-color: var(--green);
+    color: var(--green);
+    background: rgba(74,222,128,0.04);
+  }
+
+  .answer-btn.correct {
+    border-color: var(--green);
+    background: var(--green-dim);
+    color: var(--green);
+  }
+
+  .answer-btn.wrong {
+    border-color: var(--red);
+    color: var(--red);
+    background: rgba(248,113,113,0.06);
+  }
+
+  .answer-btn:disabled {
+    cursor: not-allowed;
+  }
+
+  /* Feedback */
+  #feedback {
+    font-size: 0.88rem;
+    line-height: 1.6;
+    color: var(--muted);
+    min-height: 42px;
+    animation: fadeIn 0.3s ease;
+    font-style: italic;
+  }
+
+  /* Progress bar */
+  .progress-bar-wrap {
+    height: 2px;
+    background: var(--border);
+    margin-bottom: 24px;
+  }
+
+  #progress-bar {
+    height: 100%;
+    background: var(--green);
+    transition: width 0.4s ease;
+    box-shadow: 0 0 8px rgba(74,222,128,0.5);
+  }
+
+  /* Score + controls row */
+  .bottom-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-top: 24px;
+  }
+
+  .score-display {
+    font-size: 0.75rem;
+    letter-spacing: 0.15em;
+    color: var(--muted);
+  }
+
+  .score-display span {
+    color: var(--green);
+    font-weight: 700;
+    font-size: 1rem;
+  }
+
+  #next-btn {
+    background: var(--green);
+    color: #050905;
+    border: none;
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 1.1rem;
+    letter-spacing: 0.12em;
+    padding: 8px 24px;
+    cursor: pointer;
+    display: none;
+    transition: opacity 0.15s;
+  }
+
+  #next-btn:hover { opacity: 0.85; }
+
+  /* Final screen */
+  #final-screen {
+    display: none;
+    text-align: center;
+    animation: fadeIn 0.5s ease;
+    min-height: 220px;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+  }
+
+  .final-rank {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: clamp(2rem, 6vw, 3.5rem);
+    color: var(--green);
+    text-shadow: 0 0 20px rgba(74,222,128,0.5);
+    line-height: 1;
+  }
+
+  .final-score-txt {
+    color: var(--muted);
+    font-size: 0.8rem;
+    letter-spacing: 0.15em;
+  }
+
+  .final-desc {
+    color: var(--text);
+    font-size: 0.9rem;
+    max-width: 440px;
+    line-height: 1.6;
+    margin-top: 8px;
+    font-style: italic;
+  }
+
+  #restart-btn {
+    margin-top: 20px;
+    background: transparent;
+    border: 1px solid var(--green);
+    color: var(--green);
+    font-family: 'Courier Prime', monospace;
+    font-size: 0.82rem;
+    padding: 9px 22px;
+    cursor: pointer;
+    letter-spacing: 0.1em;
+    transition: background 0.15s, color 0.15s;
+  }
+
+  #restart-btn:hover {
+    background: var(--green-dim);
+  }
+
+  .blink { animation: blink 1.1s step-end infinite; }
+  @keyframes blink { 50% { opacity: 0; } }
+</style>
+</head>
+<body>
+
+<h1>STANDUP SIMULATOR</h1>
+<p class="subtitle">v3.0.0 &nbsp;·&nbsp; an easter egg for productive people</p>
+
+<div class="game-area" data-label="// GAME.EXE">
+  <div class="progress-bar-wrap"><div id="progress-bar" style="width:0%"></div></div>
+
+  <div id="screen">
+    <div id="question-block" class="question-block">
+      <div class="q-label">Question 01 / 06</div>
+      <div class="q-text" id="q-text">Loading...</div>
+    </div>
+    <div id="answer-row" class="answer-row"></div>
+    <div id="feedback"></div>
+  </div>
+
+  <div id="final-screen">
+    <div class="final-score-txt">FINAL SCORE</div>
+    <div class="final-rank" id="final-rank">—</div>
+    <div class="final-score-txt" id="final-score-txt">—</div>
+    <div class="final-desc" id="final-desc">—</div>
+    <button id="restart-btn" onclick="restart()">[ RUN AGAIN ]</button>
+  </div>
+
+  <div class="bottom-row">
+    <div class="score-display">SCORE &nbsp;<span id="score-val">0</span></div>
+    <button id="next-btn" onclick="nextQuestion()">NEXT →</button>
+  </div>
+</div>
+
+<script>
+const questions = [
+  {
+    q: "Your standup is scheduled for 9am. It is 8:59am. What do you do?",
+    answers: [
+      { text: "Join early. Make awkward small talk.", correct: false, feedback: "Bold move. You've now committed to talking about the weather for 60 seconds." },
+      { text: "Join at 9:00 exactly. Muted. Camera off.", correct: true,  feedback: "Perfect. Mysterious. Professional. No one knows if you're wearing pants." },
+      { text: "Join at 9:03. Blame 'the previous meeting'.", correct: false, feedback: "Classic. Everyone knows there was no previous meeting." },
+      { text: "Reschedule 'due to a conflict'.", correct: false, feedback: "The conflict is that you didn't want to attend. Relatable, but noted." },
+    ]
+  },
+  {
+    q: "Someone asks 'How's the ticket going?' You have not looked at the ticket since Tuesday. It is Friday.",
+    answers: [
+      { text: "\"Making good progress!\"",                correct: false, feedback: "Technically, time is progressing. So this isn't entirely false." },
+      { text: "\"Blocked. On things. Externally.\"",       correct: true,  feedback: "Vague enough to be true. Specific enough to sound credible. Chef's kiss." },
+      { text: "Open the ticket live, on screen, for all.", correct: false, feedback: "A bold strategy. Everyone can now see it was last updated Tuesday." },
+      { text: "Counter-question: 'Which ticket?'",        correct: false, feedback: "This buys you 30 seconds max before someone reads out the ticket number." },
+    ]
+  },
+  {
+    q: "The build is broken. You didn't break it. But you are the last person who touched it.",
+    answers: [
+      { text: "Immediately confess.",                          correct: false, feedback: "Admirable. Wrong, but admirable. You are not legally required to incriminate yourself." },
+      { text: "Say nothing. Let git blame sort it out.",        correct: true,  feedback: "Let the logs speak. You are simply a witness." },
+      { text: "Send 'weird, works on my machine 🤷' in Slack.", correct: false, feedback: "You have sent this before. Everyone knows you have sent this before." },
+      { text: "Blame a library update.",                       correct: false, feedback: "Plausible. Unprovable. But now someone will actually check." },
+    ]
+  },
+  {
+    q: "A PR review has been sitting in your queue for 4 days. Your colleague pings you: '👀'",
+    answers: [
+      { text: "Reply '👀' back. Establish dominance.", correct: false, feedback: "Visionary. Nothing has been communicated. Nothing has changed. Power move." },
+      { text: "Review it immediately. Leave 11 nitpicks.", correct: false, feedback: "You are not helpful. You are thorough. There is a difference." },
+      { text: "Leave a single comment: 'Looks good overall, just some minor thoughts' then no thoughts.", correct: false, feedback: "A classic. Everyone does this. No one talks about it." },
+      { text: "Approve. You will understand the code when it breaks.", correct: true, feedback: "Experience is the best teacher. Preferably at 2pm on a Wednesday, not a Friday." },
+    ]
+  },
+  {
+    q: "It's your turn to give a demo. The feature works on your machine. You share your screen. It does not work.",
+    answers: [
+      { text: "Pivot to PowerPoint slides.",             correct: false, feedback: "The slides were made in 20 minutes. Everyone can tell. Respect the hustle though." },
+      { text: "Say 'this never happens' and refresh repeatedly.", correct: false, feedback: "It has happened before. It will happen again." },
+      { text: "Debug live. Commentate every step.",      correct: true, feedback: "The audience is engaged. Terrified, but engaged. This is content." },
+      { text: "Close laptop. 'Let's circle back.'",      correct: false, feedback: "You will not circle back. The feature will ship anyway. As God intended." },
+    ]
+  },
+  {
+    q: "You have been in a meeting for 47 minutes. The original agenda had 3 items. Item 1 is still being discussed.",
+    answers: [
+      { text: "Suggest 'taking this async'.",            correct: true,  feedback: "Correct. This meeting was always a document that didn't want to be written." },
+      { text: "Request a follow-up meeting.",             correct: false, feedback: "You have booked another meeting to resolve the meeting. Ouroboros energy." },
+      { text: "Introduce Item 2 yourself. Just start.",  correct: false, feedback: "Chaotic neutral. The group is not ready. You are not their leader. Not yet." },
+      { text: "Turn off camera. Respond with 'mm' every 5 mins.", correct: false, feedback: "Efficient. Cowardly. Sustainable." },
+    ]
+  },
+];
+
+const ranks = [
+  { min: 0, label: "JUNIOR ATTENDEE", desc: "You are present. Sometimes that's enough. Usually it isn't. But today it is." },
+  { min: 2, label: "MID-LEVEL SURVIVOR", desc: "You have opinions, occasionally share them, and have learned that silence is a valid strategy." },
+  { min: 4, label: "SENIOR WRANGLER", desc: "You book meetings to cancel meetings. You speak in JIRA tickets. You are the system now." },
+  { min: 6, label: "STAFF GHOST", desc: "Technically in every meeting. Truly in none. A legend. Unblocked by definition." },
+];
+
+let current = 0;
+let score = 0;
+let answered = false;
+
+function render() {
+  const q = questions[current];
+  document.getElementById('question-block').innerHTML = `
+    <div class="q-label">Question ${String(current+1).padStart(2,'0')} / ${questions.length}</div>
+    <div class="q-text">${q.q}</div>
+  `;
+  const row = document.getElementById('answer-row');
+  row.innerHTML = '';
+  const shuffled = [...q.answers].sort(() => Math.random() - 0.5);
+  shuffled.forEach((a, i) => {
+    const btn = document.createElement('button');
+    btn.className = 'answer-btn';
+    btn.innerHTML = `<span style="color:var(--muted);margin-right:6px">${String.fromCharCode(65+i)})</span> ${a.text}`;
+    btn.onclick = () => pick(btn, a, shuffled);
+    row.appendChild(btn);
+  });
+  document.getElementById('feedback').textContent = '';
+  document.getElementById('next-btn').style.display = 'none';
+  document.getElementById('progress-bar').style.width = `${(current / questions.length) * 100}%`;
+  answered = false;
+}
+
+function pick(btn, answer, all) {
+  if (answered) return;
+  answered = true;
+  document.querySelectorAll('.answer-btn').forEach(b => b.disabled = true);
+
+  if (answer.correct) {
+    btn.classList.add('correct');
+    score++;
+    document.getElementById('score-val').textContent = score;
+  } else {
+    btn.classList.add('wrong');
+    // highlight correct
+    document.querySelectorAll('.answer-btn').forEach(b => {
+      const label = b.textContent.slice(2).trim();
+      const match = all.find(a => a.correct && b.textContent.includes(a.text));
+      if (match) b.classList.add('correct');
+    });
+  }
+
+  document.getElementById('feedback').textContent = '// ' + answer.feedback;
+  document.getElementById('next-btn').style.display = 'block';
+  document.getElementById('progress-bar').style.width = `${((current + 1) / questions.length) * 100}%`;
+}
+
+function nextQuestion() {
+  current++;
+  if (current >= questions.length) {
+    showFinal();
+  } else {
+    render();
+  }
+}
+
+function showFinal() {
+  document.getElementById('screen').style.display = 'none';
+  document.getElementById('next-btn').style.display = 'none';
+  const fs = document.getElementById('final-screen');
+  fs.style.display = 'flex';
+
+  const rank = [...ranks].reverse().find(r => score >= r.min);
+  document.getElementById('final-rank').textContent = rank.label;
+  document.getElementById('final-score-txt').textContent = `${score} / ${questions.length} correct answers`;
+  document.getElementById('final-desc').textContent = rank.desc;
+  document.getElementById('progress-bar').style.width = '100%';
+}
+
+function restart() {
+  current = 0; score = 0;
+  document.getElementById('score-val').textContent = 0;
+  document.getElementById('final-screen').style.display = 'none';
+  document.getElementById('screen').style.display = 'flex';
+  render();
+}
+
+render();
+</script>
+</body>
+</html>
